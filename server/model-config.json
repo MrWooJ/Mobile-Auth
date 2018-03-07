@@ -35,5 +35,13 @@
   "Role": {
     "dataSource": "db",
     "public": false
+  },
+  "controller": {
+    "dataSource": "mongoDs",
+    "public": true
+  },
+  "basic": {
+    "dataSource": "mongoDs",
+    "public": false
   }
 }
