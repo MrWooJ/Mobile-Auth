@@ -1,0 +1,11 @@
+{
+  "mongoDs": {
+    "host": "localhost",
+    "port": 27017,
+    "url": "",
+    "maxRows": 2000,
+    "database": "copa90DB",
+    "name": "mongoDs",
+    "connector": "mongodb"
+  }
+}
