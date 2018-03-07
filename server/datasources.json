@@ -3,9 +3,9 @@
     "host": "localhost",
     "port": 27017,
     "url": "",
-    "maxRows": 2000,
-    "database": "copa90DB",
+    "database": "MobileAuthDB",
     "name": "mongoDs",
+    "maxRows": 2000,
     "connector": "mongodb"
   }
 }
