@@ -1,20 +1,16 @@
 var cron = require('cron')
 var app = require('../../server/server')
 var createError = require('http-errors')
+var utility = require('../../public/utility')
 
-var verificationStatus = {
-  "ready": "Ready",
-  "pending": "Pending",
-  "verified": "Verified",
-  "suspended": "Suspended"
-}
+var verificationStatus = require('../../config/verificationStatus.json')
 
 var verifiedAdditionTime = 3 * 24 * 60 * 60 * 1000
 
 module.exports = function (controller) {
 
   var checkSuspendStatus = cron.job("*/10 * * * * *", function () {
-		var basic = controller.app.models.basic
+    var basic = controller.app.models.basic
     var time = Math.floor((new Date).getTime())
     basic.find({
       where: {
@@ -26,8 +22,13 @@ module.exports = function (controller) {
         console.error(err)
       for (var i = 0; i < basicList.length; i++) {
         var model = basicList[i]
-        if (Number(model.date) + Number(model.ttl) >= time) {
-          model.updateAttribute('status', verificationStatus.ready, function (err, basicInst) {
+        if (Number(model.date) + Number(model.ttl) < time) {
+          var data = {
+            tryCount: 5,
+            date: time,
+            status: verificationStatus.ready
+          }
+          model.updateAttributes(data, function (err, basicInst) {
             if (err)
               console.error(err)
           })
@@ -39,8 +40,8 @@ module.exports = function (controller) {
   checkSuspendStatus.start()
 
   var checkPendingStatus = cron.job("*/10 * * * * *", function () {
-		var basic = controller.app.models.basic
-		var time = Math.floor((new Date).getTime())
+    var basic = controller.app.models.basic
+    var time = Math.floor((new Date).getTime())
     basic.find({
       where: {
         'status': verificationStatus.pending
@@ -51,8 +52,13 @@ module.exports = function (controller) {
         console.error(err)
       for (var i = 0; i < basicList.length; i++) {
         var model = basicList[i]
-        if (Number(model.date) + Number(model.ttl) >= time) {
-          model.updateAttribute('status', verificationStatus.ready, function (err, basicInst) {
+        if (Number(model.date) + Number(model.ttl) < time) {
+          var data = {
+            tryCount: 5,
+            date: time,
+            status: verificationStatus.ready
+          }
+          model.updateAttributes(data, function (err, basicInst) {
             if (err)
               console.error(err)
           })
@@ -64,7 +70,7 @@ module.exports = function (controller) {
   checkPendingStatus.start()
 
   var checkVerifiedStatus = cron.job("*/10 * * * * *", function () {
-		var basic = controller.app.models.basic
+    var basic = controller.app.models.basic
     var time = Math.floor((new Date).getTime())
     basic.find({
       where: {
@@ -76,8 +82,13 @@ module.exports = function (controller) {
         console.error(err)
       for (var i = 0; i < basicList.length; i++) {
         var model = basicList[i]
-        if (Number(model.date) + verifiedAdditionTime >= time) {
-          model.updateAttribute('status', verificationStatus.ready, function (err, basicInst) {
+        if (Number(model.date) + verifiedAdditionTime < time) {
+          var data = {
+            tryCount: 5,
+            date: time,
+            status: verificationStatus.ready
+          }
+          model.updateAttributes(data, function (err, basicInst) {
             if (err)
               console.error(err)
           })
@@ -95,116 +106,122 @@ module.exports = function (controller) {
   }
 
   function sendSMS(mobileNumber, randomPassword, cb) {
-		// Implement your send sms API here!
+
   }
 
   function invokePassword(mobileNumber, cb) {
-		controller.observe('loaded', function( ctx, next) {
-			var basic = controller.app.models.basic
-			basic.find({
-				'where': {
-					'mobileNumber': mobileNumber
-				},
-				limit: 50000
-			}, function (err, modelArrays) {
-				if (err)
-					return cb(err)
-				var rand = getRandomInt(125000, 999999)
-				var time = Math.floor((new Date).getTime())
-				var data = {
-					mobileNumber: mobileNumber,
-					password: rand,
-					date: time,
-					status: verificationStatus.pending
-				}
-				if (modelArrays.length <= 0) {
-					basic.create(data, function (err, basicModel) {
-						if (err)
-							return cb(err)
-						return cb(null, basicModel)
-					})
-				} else {
-					var model = modelArrays[0]
-					if (model.status === verificationStatus.suspended)
-						return cb(createError(423))
-					if (model.status === verificationStatus.verified)
-						return cb(null, model)
-					model.updateAttributes(data, function (basicUpdatedModel) {
-						if (err)
-							return cb(err)
-						sendSMS(mobileNumber, rand, function (err, result) {
-							if (err)
-								return cb(err)
-							return cb(null, basicUpdatedModel)
-						})
-					})
-				}
-			})
-		})
+    var basic = controller.app.models.basic
+    basic.find({
+      'where': {
+        'mobileNumber': mobileNumber
+      },
+      limit: 50000
+    }, function (err, modelArrays) {
+      if (err)
+        return cb(err)
+      console.log(modelArrays.length)
+      var rand = getRandomInt(125000, 999999)
+      var time = Math.floor((new Date).getTime())
+      var data = {
+        mobileNumber: mobileNumber,
+        password: rand,
+        date: time,
+        status: verificationStatus.pending
+      }
+      if (modelArrays.length <= 0) {
+        basic.create(data, function (err, basicModel) {
+          if (err)
+            return cb(err)
+          sendSMS(mobileNumber, rand, function (err, result) {
+            if (err)
+              return cb(err)
+            return cb(null, basicModel)
+          })
+        })
+      } else {
+        var model = modelArrays[0]
+        if (model.status === verificationStatus.suspended)
+          return cb(createError(423))
+        if (model.status === verificationStatus.verified)
+          return cb(null, model)
+        model.updateAttributes(data, function (err, basicUpdatedModel) {
+          if (err)
+            return cb(err)
+          sendSMS(mobileNumber, rand, function (err, result) {
+            if (err)
+              return cb(err)
+            return cb(null, basicUpdatedModel)
+          })
+        })
+      }
+    })
   }
 
   function enterPassword(mobileNumber, password, cb) {
-		controller.observe('loaded', function( ctx, next) {
-			var basic = controller.app.models.basic
-			basic.find({
-				'where': {
-					'mobileNumber': mobileNumber
-				},
-				limit: 50000
-			}, function (err, modelArrays) {
-				if (err)
-					return cb(err)
-				if (modelArrays.length <= 0)
-					return cb(createError(404))
-				else {
-					var model = modelArrays[0]
-					if (model.status === verificationStatus.suspended)
-						return cb(createError(423))
-					if (model.status === verificationStatus.verified)
-						return cb(null, model)
-					if (model.status === verificationStatus.ready)
-						return cb(createError(404))
-					var newTryCount = Number(model.tryCount) - 1
-					var time = Math.floor((new Date).getTime())
-					if (newTryCount <= 0) {
-						var data = {
-							status: verificationStatus.suspended,
-							date: time
-						}
-						model.updateAttributes(data, function (basicUpdatedModel) {
-							if (err)
-								return cb(err)
-							return cb(createError(423))
-						})
-					}
-					var expireDate = Number(model.date) + Number(model.ttl)
-					if (time > expireDate) {
-						model.updateAttribute('status', verificationStatus.ready, function (basicUpdatedModel) {
-							if (err)
-								return cb(err)
-							return cb(createError(404))
-						})
-					}
-					if (password !== model.password) {
-						model.updateAttribute('tryCount', newTryCount, function (basicUpdatedModel) {
-							if (err)
-								return cb(err)
-							return cb(createError(401))
-						})
-					} else {
-						var data = {
-							status: verificationStatus.verified,
-							date: time
-						}
-						model.updateAttributes(data, function (basicUpdatedModel) {
-							if (err)
-								return cb(err)
-							return cb(null, basicUpdatedModel)
-						})
-					}
-				}
-			})	
-		})
+    var basic = controller.app.models.basic
+    basic.find({
+      'where': {
+        'mobileNumber': mobileNumber
+      },
+      limit: 50000
+    }, function (err, modelArrays) {
+      if (err)
+        return cb(err)
+      if (modelArrays.length <= 0)
+        return cb(createError(404))
+      else {
+        var model = modelArrays[0]
+        if (model.status === verificationStatus.suspended)
+          return cb(createError(423))
+        if (model.status === verificationStatus.verified)
+          return cb(null, model)
+        if (model.status === verificationStatus.ready)
+          return cb(createError(404))
+        var newTryCount = Number(model.tryCount) - 1
+        var time = Math.floor((new Date).getTime())
+        if (newTryCount <= 0) {
+          var data = {
+            status: verificationStatus.suspended,
+            date: time
+          }
+          model.updateAttributes(data, function (err, basicUpdatedModel) {
+            if (err)
+              return cb(err)
+            return cb(createError(423))
+          })
+        }
+        var expireDate = Number(model.date) + Number(model.ttl)
+        if (time > expireDate) {
+          var data = {
+            tryCount: 5,
+            date: time,
+            status: verificationStatus.ready
+          }
+          model.updateAttributes(data, function (err, basicUpdatedModel) {
+            if (err)
+              return cb(err)
+            return cb(createError(404))
+          })
+        }
+        if (password !== model.password) {
+          model.updateAttribute('tryCount', newTryCount, function (err, basicUpdatedModel) {
+            if (err)
+              return cb(err)
+            return cb(createError(401))
+          })
+        } else {
+          var data = {
+            status: verificationStatus.verified,
+            date: time
+          }
+          model.updateAttributes(data, function (err, basicUpdatedModel) {
+            if (err)
+              return cb(err)
+            return cb(null, basicUpdatedModel)
+          })
+        }
+      }
+    })
   }
 
   controller.sendCode = function (mobileNumber, callback) {
