@@ -14,7 +14,7 @@ With this phone verification tool, you can validate phone numbers as they are co
 ## State Machine Diagram
 According to the diagram, Every user model will be located only in one state at a time. User's current state may become changed due to either user interactions or system analysis.
 
-![Mobile Auth State Diagram](./Images/MobileAuth.png)
+![Mobile Auth State Diagram](./images/MobileAuth.png)
 ---
 ## Getting Started
 
